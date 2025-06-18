@@ -1,0 +1,11 @@
+.backup
+.venv
+.idea
+.vscode
+.env
+*.pyc
+*.log
+*_emotion
+__pycache__
+backup
+venv
