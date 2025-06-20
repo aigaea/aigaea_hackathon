@@ -2,10 +2,10 @@ import os
 import sys
 import json
 import time
+import random
 import argparse
 import asyncio
 import pymysql
-import random
 import requests
 import threading
 import concurrent.futures
@@ -151,6 +151,18 @@ def get_transaction_receipt_with_retry(web3_obj, tx_hash, max_retries=5, retry_i
                 logger.error("Max retries reached. Failed to eth.get_transaction_receipt.")
                 return None
 
+def get_event_logs_with_retry(contract_event, from_block, to_block, max_retries=5, retry_interval=2):
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            return contract_event.get_logs(from_block=from_block, to_block=to_block)
+        except Exception as e:
+            logger.error(f"Event logs attempt {attempt+1} failed: {str(e)}")
+            attempt += 1
+            time.sleep(retry_interval)
+    logger.error("Max retries reached for event logs query")
+    return []
+
 # ------------------------------------------------------------------------------------
 
 # Monitor blocks and parse related transactions into the database
@@ -161,7 +173,7 @@ def listen_transactions_start(web3_config, hash_index):
     config_chainid = web3_config['chain_id'] # chain_id
     if not config_chainid:
         raise Exception("Web3 chain_id not found")
-    
+
     web3_rpc_url = web3_config['server'] # rpc
     if not web3_rpc_url:
         raise Exception("Web3 rpc not found")
@@ -170,7 +182,7 @@ def listen_transactions_start(web3_config, hash_index):
     while not web3_is_connected_with_retry(web3_obj):
         logger.error(f"Ooops! Failed to eth.is_connected.")
         time.sleep(10)
-    
+
     retry_interval = web3_config.get('interval', 10)*3
     
     # emotion
@@ -182,6 +194,7 @@ def listen_transactions_start(web3_config, hash_index):
         return {"code": 401, "success": False, "msg": "Invalid emotion_contract address"}
     logger.info(f"emotion_address: {emotion_address} config_chainid: {config_chainid}")
 
+    MAX_BLOCK_RANGE = 5000
     while True:
         try:
             current_block = get_block_number_with_retry(web3_obj)
@@ -190,17 +203,20 @@ def listen_transactions_start(web3_config, hash_index):
                 logger.error(f"Ooops! Failed to eth.block_number.")
                 time.sleep(retry_interval)
                 continue
-            elif current_block-hash_index <= 0:
-                logger.error(f"Ooops! current_block < hash_index: {current_block-hash_index}")
+            block_diff = current_block - hash_index
+            if block_diff <= 0:
+                logger.error(f"Ooops! Current block behind index: {block_diff}")
                 time.sleep(retry_interval)
                 continue
+            to_block = min(current_block, hash_index + MAX_BLOCK_RANGE)
+            logger.debug(f"Processing blocks: {hash_index} to {to_block} (diff: {to_block - hash_index})")
 
-            if current_block > hash_index+5000:
-                current_block = hash_index+5000
-
-            # logger.debug(f"current_block: {current_block}")
-            
-            events = emotion_contract.events.Emotions.get_logs(from_block=web3_obj.to_hex(hash_index), to_block=current_block)
+            # events = emotion_contract.events.Emotions.get_logs(from_block=web3_obj.to_hex(hash_index), to_block=to_block)
+            events = get_event_logs_with_retry(
+                emotion_contract.events.Emotions,
+                from_block=hash_index,
+                to_block=to_block,
+            )
             for event in events:
                 logger.info(f"Emotions event: {event}")
                 block_number = int(event.blockNumber)
@@ -421,7 +437,6 @@ async def listen_transactions():
         time.sleep(5)
     print(f"current_block: {current_block}")
 
-    hash_index = 0
     if not os.path.exists(hash_file):
         with open(hash_file, "w", encoding="utf-8") as f:
             f.write(str(current_block))
