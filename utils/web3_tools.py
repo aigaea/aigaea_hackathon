@@ -8,7 +8,7 @@ from utils.log import log as logger
 # ------------------------------------------------------------------------------------
 
 def get_web3_config_by_chainid(chainid):
-    assert chainid in [0, 11155111, 84532]
+    assert chainid in [0, 11155111, 84532, 43113]
     web3_configs = json.loads(WEB3_CONFIG)
     for web3_client in web3_configs:
         if chainid>0:
@@ -20,7 +20,7 @@ def get_web3_config_by_chainid(chainid):
     return web3_configs[0]
 
 def get_web3_config_by_network(network=WEB3_NETWORK):
-    assert network in ["Ethereum Sepolia", "Base Sepolia"]
+    assert network in ["Ethereum Sepolia", "Base Sepolia", "Avalanche Fuji"]
     web3_configs: list = json.loads(WEB3_CONFIG)
     for web3_client in web3_configs:
         if web3_client['network'] == network:

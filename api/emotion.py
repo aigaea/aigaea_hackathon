@@ -170,9 +170,6 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
         logger.debug(f"current_timestamp: {current_timestamp}")
 
         chain_id = post_request.chain_id
-        if chain_id not in [0, 11155111, 84532]:
-            logger.error(f"chain_id: {chain_id} not support")
-            raise Exception("chain_id not found")
         web3_config = get_web3_config_by_chainid(chain_id)
         logger.debug(f"web3_config: {web3_config}")
         if not web3_config:
@@ -389,9 +386,6 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
         logger.debug(f"current_timestamp: {current_timestamp}")
 
         chain_id = post_request.chain_id
-        if chain_id not in [0, 11155111, 84532]:
-            logger.error(f"chain_id: {chain_id} not support")
-            raise Exception("chain_id not found")
         web3_config = get_web3_config_by_chainid(chain_id)
         logger.debug(f"web3_config: {web3_config}")
         if not web3_config:

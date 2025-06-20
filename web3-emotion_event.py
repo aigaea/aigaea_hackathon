@@ -406,13 +406,6 @@ async def listen_transactions():
     if not config_chainid:
         raise Exception("Web3 chain_id not found")
 
-    if config_chainid == 11155111:
-        hash_index = 22666627
-    elif config_chainid == 84532:
-        hash_index = 24595332
-    else:
-        logger.error(f"chainid: {config_chainid} not found")
-        return
     hash_file=f"{config_chainid}_emotion"
 
     web3_rpc_url = web3_config['server'] # rpc
@@ -428,6 +421,7 @@ async def listen_transactions():
         time.sleep(5)
     print(f"current_block: {current_block}")
 
+    hash_index = 0
     if not os.path.exists(hash_file):
         with open(hash_file, "w", encoding="utf-8") as f:
             f.write(str(current_block))
