@@ -36,8 +36,7 @@ contract_abi_emotion = [
         },
         {
             "inputs": [
-                { "internalType": "uint256", "name": "newUserProportion", "type": "uint256" },
-                { "internalType": "uint256", "name": "newPlatformProportion", "type": "uint256" }
+                { "internalType": "uint256", "name": "newUserProportion", "type": "uint256" }
             ],
             "name": "setProportion",
             "outputs": [],
@@ -536,7 +535,7 @@ async def main_open_emotion():
 
                 # Has the share ratio changed?
                 if next_proportion != int(period_proportion): ## Modify the share ratio
-                    transaction = emotion_contract.functions.setProportion( next_proportion, (100-next_proportion), 0).build_transaction(
+                    transaction = emotion_contract.functions.setProportion( next_proportion ).build_transaction(
                         {
                             "chainId": config_chainid,
                             "from": sender_address,

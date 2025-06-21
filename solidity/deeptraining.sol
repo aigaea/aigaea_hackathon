@@ -838,11 +838,19 @@ pragma solidity ^0.8.0;
 contract deeptraining is VRFConsumerBaseV2Plus {
     using SafeMath for uint;
 
+    // Whitelist
+    mapping(address => bool) public isWhitelisted;
+    modifier onlyWhitelisted() {
+        require(isWhitelisted[msg.sender], "not whitelisted");
+        _;
+    }
+    event AddedWhiteList(address _user);
+    event RemovedWhiteList(address _user);
+
     uint256 public Issue; // Current issue number
     address public USDC;  // USDC contract address
     address public Recipient; // Recipient address
     uint256 public userProportion; // User proportion
-    uint256 public platformProportion; // Platform proportion
 
     // Chainlink VRF V2.5
     IVRFCoordinatorV2Plus private immutable i_vrfCoordinator; // VRF coordinator address
@@ -879,7 +887,6 @@ contract deeptraining is VRFConsumerBaseV2Plus {
         address _USDC,
         address _Recipient,
         uint256 _userProportion,
-        uint256 _platformProportion,
         // Chainlink VRF parameters
         address vrfCoordinator,
         bytes32 keyHash,
@@ -887,11 +894,15 @@ contract deeptraining is VRFConsumerBaseV2Plus {
     )
         VRFConsumerBaseV2Plus(vrfCoordinator)
     {
-        require(_userProportion + _platformProportion == 100, "Invalid Proportion");
-        USDC = _USDC; // Set USDC address
-        Recipient = _Recipient; // Set recipient address
-        userProportion = _userProportion; // Set user proportion
-        platformProportion = _platformProportion; // Set platform proportion
+        // Add whitelist
+        isWhitelisted[msg.sender] = true;
+        // Set address
+        require(_USDC != address(0), "Invalid USDC address");
+        USDC = _USDC;
+        Recipient = _Recipient;
+        // Set proportion
+        require(_userProportion >= 1 && _userProportion <= 100, "Invalid Proportion");
+        userProportion = _userProportion;
         // Initialize Chainlink VRF
         require(vrfCoordinator != address(0), "Invalid VRFCoordinator address");
         require(subscriptionId != 0, "Invalid subscription ID");
@@ -925,8 +936,8 @@ contract deeptraining is VRFConsumerBaseV2Plus {
         return IssueEmotionAddrs[_Issue][_num].length;
     }
 
-    // Whitelisted admin: Request random number
-    function openVRFRandomEmotions() public onlyOwner {
+    // Whitelist admin: Request random number
+    function openVRFRandomEmotions() public onlyWhitelisted {
         require(block.timestamp >= IssueInformation[Issue].duration, "Not yet finished");
         require(IssueEmotion[Issue] == 0, "Emotions already exist");
 
@@ -953,9 +964,9 @@ contract deeptraining is VRFConsumerBaseV2Plus {
 
         emit OpenVrfCompleted(Issue, requestId, emotionsresult);
     }
- 
-    // Whitelisted admin: Prize draw
-    function openEmotions() public onlyOwner {
+
+    // Whitelist admin: Prize draw
+    function openEmotions() public onlyWhitelisted {
         require(block.timestamp >= IssueInformation[Issue].duration, "Not yet finished");
         require(IssueEmotion[Issue] >= 1 && IssueEmotion[Issue] <= 3, "Invalid emotion");
         require(IssueReward[Issue] == 0, "Reward already exists");
@@ -968,8 +979,8 @@ contract deeptraining is VRFConsumerBaseV2Plus {
 
         emit OpenEmotions(Issue, usertotal, useraverage); 
     }
-    //Whitelisted admin: Start new issue
-    function openNewIssue(uint256 _duration, uint256 _price, uint256 _putmoney) public onlyOwner {
+    // Whitelist admin: Start new issue
+    function openNewIssue(uint256 _duration, uint256 _price, uint256 _putmoney) public onlyWhitelisted {
         if (Issue > 0 && IssueReward[Issue] == 0) {
             // Prize draw
             openEmotions();
@@ -980,14 +991,11 @@ contract deeptraining is VRFConsumerBaseV2Plus {
         Issue = Issue.add(1);
         IssueInformation[Issue] = information(block.timestamp + _duration, _price, _putmoney);
     }
-    //Whitelist admin: Set the award ratio
-    function setProportion(uint256 newUserProportion, uint256 newPlatformProportion) public onlyOwner {
+    // Whitelist admin: Set the award ratio
+    function setProportion(uint256 newUserProportion) public onlyWhitelisted {
         require(newUserProportion >= 1 && newUserProportion <= 100, "Invalid Proportion");
-        require(newPlatformProportion >= 1 && newPlatformProportion <= 100, "Invalid Proportion");
-        require(newUserProportion + newPlatformProportion == 100, "Invalid Proportion");
 
         userProportion = newUserProportion;
-        platformProportion = newPlatformProportion;
     }
     // Contract owner: Update USDC address
     function setUSDCAddress(address _usdc) public onlyOwner {
@@ -998,5 +1006,20 @@ contract deeptraining is VRFConsumerBaseV2Plus {
     function setRecipientAddress(address _recipient) public onlyOwner {
         require(_recipient != address(0), "Invalid recipient address");
         Recipient = _recipient;
+    }
+    // Contract owner: Add address to whitelist
+    function addWhitelist(address _addr) external onlyOwner {
+        require(!isWhitelisted[_addr], "Address already whitelisted");
+        isWhitelisted[_addr] = true;
+        emit AddedWhiteList(_addr);
+    }
+    // Contract owner: Remove address from whitelist
+    function removeWhitelist(address _addr) external onlyOwner {
+        require(isWhitelisted[_addr], "Address not whitelisted");
+        isWhitelisted[_addr] = false;
+        emit RemovedWhiteList(_addr);
+    }
+    function getWhiteListStatus(address _addr) external view returns (bool) {
+        return isWhitelisted[_addr];
     }
 }

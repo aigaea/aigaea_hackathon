@@ -39,16 +39,6 @@ contract_abi_emotion = [
         },
         {
             "inputs": [
-                { "internalType": "uint256", "name": "newUserProportion", "type": "uint256" },
-                { "internalType": "uint256", "name": "newPlatformProportion", "type": "uint256" }
-            ],
-            "name": "setProportion",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
                 { "internalType": "uint256", "name": "", "type": "uint256" }
             ],
             "name": "IssueReward",
