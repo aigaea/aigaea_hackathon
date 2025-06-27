@@ -8,14 +8,14 @@ import random
 import sys
 import time
 from web3 import Web3
+from loguru import logger
 from datetime import datetime as dt
 
 import pymysql
 
-from config import DB_CONFIG, APP_CONFIG, WEB3_NETWORK, WEB3_WHITE_PRIKEY
 from utils.cache import get_redis_data, set_redis_data, del_redis_data
-from utils.web3_tools import get_web3_config_by_network
-from utils.log import log as logger
+from utils.web3_tools import get_web3_config_by_chainid
+from config import DB_CONFIG, WEB3_WHITE_PRIKEY
 
 """
 - Open the lottery or start the next round based on database parameters
@@ -29,7 +29,7 @@ contract_abi_emotion = [
             "inputs": [],
             "name": "userProportion",
             "outputs": [
-                { "internalType": "uint256", "name": "", "type": "uint256" }
+                { "internalType": "uint8", "name": "", "type": "uint256" }
             ],
             "stateMutability": "view",
             "type": "function"
@@ -211,9 +211,9 @@ def send_transaction(web3_obj, transaction):
 
 # ------------------------------------------------------------------------------------
 
-async def main_open_emotion():
+async def open_emotion(chainid):
     global issue_index
-    logger.info(f"main_open_emotion start")
+    logger.info(f"open_emotion start")
     while True:
         try:
             # MySQL database connection
@@ -235,12 +235,13 @@ async def main_open_emotion():
             check_query = """
                             SELECT 
                                 period_id as id 
-                            FROM gaea_emotions 
+                            FROM hack_emotions 
                             WHERE 
-                                period_id > 0 
-                            ORDER BY period_id DESC LIMIT 1
+                                chain_id=%s AND period_id > 0 
+                            ORDER BY period_id DESC
+                            LIMIT 1
                           """
-            values = ()
+            values = (chainid)
             cursor.execute(check_query, values)
             emotion_info = cursor.fetchone()
             logger.debug(f"mysql emotion_info: {emotion_info}")
@@ -249,9 +250,9 @@ async def main_open_emotion():
             else:
                 max_period_id = 0
             if max_period_id == 0:
-                raise Exception("The gaea_emotions table has no data")
+                raise Exception("The hack_emotions table has no data")
 
-            web3_config = get_web3_config_by_network(WEB3_NETWORK)
+            web3_config = get_web3_config_by_chainid(chainid)
             logger.debug(f"web3_config: {web3_config}")
             config_chainid = web3_config['chain_id'] # chain_id
             if not config_chainid:
@@ -262,7 +263,7 @@ async def main_open_emotion():
             web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
             # Connecting to the RPC Node
             while not web3_is_connected_with_retry(web3_obj):
-                logger.error(f"Ooops! Failed to eth.is_connected.")
+                logger.error(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
                 time.sleep(10)
 
             # Whitelist address
@@ -335,17 +336,18 @@ async def main_open_emotion():
                     
                     # Insert emotions state 2
                     insert_query = """
-                                    INSERT INTO gaea_emotions (period_id,period_putmoney,period_proportion,period_price,period_end,period_emotion,period_average,period_reward,period_total,emotion_positive,emotion_neutral,emotion_negative,status) 
-                                    SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s 
+                                    INSERT INTO hack_emotions 
+                                        (chain_id,period_id,period_putmoney,period_proportion,period_price,period_end,period_emotion,period_average,period_reward,period_total,emotion_positive,emotion_neutral,emotion_negative,status) 
+                                    SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s 
                                     WHERE 
-                                        NOT EXISTS (SELECT id FROM gaea_emotions WHERE period_id = %s)
+                                        NOT EXISTS (SELECT id FROM hack_emotions WHERE chain_id=%s AND period_id=%s)
                                     """
                                     
-                    values = (period_id, period_putmoney, period_proportion, period_price,end_timestamp, period_emotion, int(period_average), int(period_reward), period_total, emotion_positive, emotion_neutral, emotion_negative, 2, period_id)
+                    values = (chainid, period_id, period_putmoney, period_proportion, period_price,end_timestamp, period_emotion, int(period_average), int(period_reward), period_total, emotion_positive, emotion_neutral, emotion_negative, 2, chainid, period_id)
                     # logger.debug(f"insert_query: {insert_query} values: {values}")
                     cursor.execute(insert_query, values)
                     cursor.connection.commit()
-                    logger.debug(f"insert gaea_emotions - status=2")
+                    logger.debug(f"insert hack_emotions - status=2")
                 continue
 
             # Current Information
@@ -375,7 +377,7 @@ async def main_open_emotion():
                 logger.debug(f"emotion_negative: {current_emotion_negative}")
                 # Update emotions state 1
                 update_query = """
-                                UPDATE gaea_emotions 
+                                UPDATE hack_emotions 
                                 SET 
                                     period_end=%s,
                                     period_putmoney=%s,
@@ -387,13 +389,13 @@ async def main_open_emotion():
                                     status=%s,
                                     updated_time=NOW()
                                 WHERE 
-                                    period_id = %s
+                                    chain_id=%s AND period_id=%s
                                 """
-                values = (end_timestamp, current_period_putmoney, current_period_price, current_period_total,current_emotion_positive,current_emotion_neutral,current_emotion_negative,1, current_period_id)
+                values = (end_timestamp, current_period_putmoney, current_period_price, current_period_total,current_emotion_positive,current_emotion_neutral,current_emotion_negative,1, chainid, current_period_id)
                 # logger.debug(f"update_query: {update_query} values: {values}")
                 cursor.execute(update_query, values)
                 cursor.connection.commit()
-                logger.success(f"update gaea_emotions - status=1 current_period_id: {current_period_id} period_end: {end_timestamp} period_price: {current_period_price}")
+                logger.success(f"update hack_emotions - status=1 current_period_id: {current_period_id} period_end: {end_timestamp} period_price: {current_period_price}")
 
                 calc_timestamp = end_timestamp - current_timestamp
                 logger.info(f"The {current_period_id} period is in progress - Please wait {calc_timestamp} Seconds")
@@ -449,11 +451,11 @@ async def main_open_emotion():
                                         period_price as price,
                                         period_putmoney as putmoney,
                                         period_proportion as proportion
-                                    FROM gaea_emotions 
+                                    FROM hack_emotions 
                                     WHERE 
-                                        period_id = %s
+                                        chain_id=%s AND period_id=%s
                                     """
-                    values = (current_period_id+1)
+                    values = (chainid, current_period_id+1)
                     cursor.execute(check_query, values)
                     next_emotion_info = cursor.fetchone()
                     logger.debug(f"mysql next_emotion_info: {next_emotion_info}")
@@ -518,19 +520,19 @@ async def main_open_emotion():
                 if current_period_id < max_period_id:
                     # Update emotions state 1
                     update_query = """
-                                    UPDATE gaea_emotions 
+                                    UPDATE hack_emotions 
                                     SET 
                                         period_start=%s,
                                         status=%s,
                                         updated_time=NOW() 
                                     WHERE 
-                                        period_id = %s
+                                        chain_id=%s AND period_id=%s
                                     """
-                    values = (current_timestamp, 1, current_period_id+1)
+                    values = (current_timestamp, 1, chainid, current_period_id+1)
                     # logger.debug(f"update_query: {update_query} values: {values}")
                     cursor.execute(update_query, values)
                     cursor.connection.commit()
-                    logger.success(f"update gaea_emotions - status=1 next_period_id: {current_period_id+1}")
+                    logger.success(f"update hack_emotions - status=1 next_period_id: {current_period_id+1}")
                 time.sleep(10)
 
                 # Has the share ratio changed?
@@ -582,7 +584,7 @@ async def main_open_emotion():
 
                 # Update emotions state 2
                 update_query = """
-                                UPDATE gaea_emotions 
+                                UPDATE hack_emotions 
                                 SET 
                                     period_end=%s,
                                     period_putmoney=%s,
@@ -597,13 +599,13 @@ async def main_open_emotion():
                                     status=%s,
                                     updated_time=NOW() 
                                 WHERE 
-                                    period_id = %s
+                                    chain_id=%s AND period_id=%s
                                 """
-                values = (end_timestamp, current_period_putmoney, current_period_price, current_emotion, int(current_period_average), int(current_period_reward), current_period_total, current_emotion_positive, current_emotion_neutral, current_emotion_negative, 2, current_period_id)
+                values = (end_timestamp, current_period_putmoney, current_period_price, current_emotion, int(current_period_average), int(current_period_reward), current_period_total, current_emotion_positive, current_emotion_neutral, current_emotion_negative, 2, chainid, current_period_id)
                 # logger.debug(f"update_query: {update_query} values: {values}")
                 cursor.execute(update_query, values)
                 cursor.connection.commit()
-                logger.success(f"update gaea_emotions - status=2 current_period_id: {current_period_id} reward: {current_period_reward} average: {current_period_average}")
+                logger.success(f"update hack_emotions - status=2 current_period_id: {current_period_id} reward: {current_period_reward} average: {current_period_average}")
 
                 await del_redis_data(True, f"hackathon:period:{config_chainid}:current")
                 await del_redis_data(True, f"hackathon:period:{config_chainid}:{current_period_id}:list")
@@ -611,22 +613,38 @@ async def main_open_emotion():
                 issue_index = current_period_id
 
         except Exception as e:
-            logger.error(f"main_open_emotion error: {e} , Please wait 600 Seconds")
+            logger.error(f"open_emotion error: {e} , Please wait 600 Seconds")
             time.sleep(600)
-    logger.info(f"main_open_emotion end")
+    logger.info(f"open_emotion end")
 
 
 if __name__ == "__main__":
     # argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', type=bool, default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('-l', '--log', type=str, default="warn")
+    parser.add_argument('-c', '--chainid', type=int, default=84532)
     args = parser.parse_args()
     run_debug = bool(args.debug)
+    run_log = str(args.log.lower())
+    run_chainid = int(args.chainid)
 
     # log level
-    log_level = "DEBUG" if run_debug else "INFO"
+    if run_debug:
+        log_level = "DEBUG"
+    else:
+        if run_log == "debug":
+            log_level = "DEBUG"
+        elif run_log == "info":
+            log_level = "INFO"
+        elif run_log == "warn":
+            log_level = "WARNING"
+        elif run_log == "error":
+            log_level = "ERROR"
+        else:
+            log_level = "WARNING"
     logger.remove()
     logger.add(sys.stdout, level=log_level)
 
-    asyncio.run(main_open_emotion())
+    asyncio.run(open_emotion(run_chainid))
 

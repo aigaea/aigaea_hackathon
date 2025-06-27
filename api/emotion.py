@@ -129,7 +129,7 @@ async def godhood_web3_config():
     if not web3_config:
         configs: list = json.loads(WEB3_CONFIG)
         # logger.debug(f"configs: {configs}")
-        configs = [config for config in configs if WEB3_NETWORK in config['network']]
+        # configs = [config for config in configs if WEB3_NETWORK in config['network']]
         logger.debug(f"configs: {configs}")
         for config in configs:
             del config['server']
@@ -180,8 +180,17 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
         logger.debug(f"redis current_period_info: {current_period_info}")
         if not current_period_info:
             # period_id
-            check_query = "SELECT period_id FROM gaea_emotions WHERE `status`=1 ORDER BY id DESC limit 1"
-            await cursorSlave.execute(check_query)
+            check_query = """
+                            SELECT
+                                period_id 
+                            FROM hack_emotions 
+                            WHERE 
+                                chain_id=%s AND `status`=1 
+                            ORDER BY id DESC
+                            LIMIT 1
+                            """
+            values = (chain_id,)
+            await cursorSlave.execute(check_query, values)
             period_info = await cursorSlave.fetchone()
             logger.debug(f"mysql period_info: {period_info}")
             period_id = period_info['period_id'] if period_info else 0
@@ -200,13 +209,13 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
                                 e2.period_emotion AS last_period_emotion,
                                 e2.period_average AS last_period_average
                             FROM 
-                                gaea_emotions e1
+                                hack_emotions e1
                             LEFT JOIN 
-                                gaea_emotions e2 ON e1.period_id - 1 = e2.period_id
+                                hack_emotions e2 ON e1.period_id - 1 = e2.period_id AND e2.chain_id=e1.chain_id
                             WHERE 
-                                e1.status = 1
+                                e1.chain_id=%s AND e1.status=1
                             """
-            values = ()
+            values = (chain_id,)
             await cursorSlave.execute(check_query, values)
             combined_info = await cursorSlave.fetchone()
             logger.debug(f"mysql combined_info: {combined_info}")
@@ -230,7 +239,7 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
                 web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
                 # Connecting to the RPC Node
                 while not web3_is_connected_with_retry(web3_obj):
-                    logger.error(f"Ooops! Failed to eth.is_connected.")
+                    logger.error(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
                     time.sleep(10)
                 logger.debug(f"web3_rpc_url: '{web3_rpc_url}' {type(web3_rpc_url)}")
                 
@@ -270,7 +279,14 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
                     last_emotion = 0
                     last_average = 0
                 
-                check_query = "SELECT period_id, period_duration FROM gaea_emotions WHERE period_id IN (%s, %s)"
+                check_query = """
+                                SELECT 
+                                    period_id, 
+                                    period_duration 
+                                FROM hack_emotions 
+                                WHERE 
+                                    period_id IN (%s, %s)
+                                """
                 values = (period_id, period_id - 1)
                 await cursorSlave.execute(check_query, values)
                 emotion_info_list = await cursorSlave.fetchall()
@@ -322,12 +338,13 @@ async def emotion_period(post_request: EmotionRequest, address: Dict = Depends(g
                         period_id as id, 
                         period_emotion as emotion, 
                         period_uuid as uuid 
-                    FROM gaea_emotion_onchain 
+                    FROM hack_emotion_onchain 
                     WHERE 
                         address = %s 
                         AND status = 1 
                         AND period_id >= %s 
-                    ORDER BY period_id DESC LIMIT 2
+                    ORDER BY period_id DESC 
+                    LIMIT 2
                     """
             values = (address,current_period_id-1)
             # print(f"check_query: {check_query}, values: {values}")
@@ -396,7 +413,15 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
         logger.debug(f"redis current_period_info: {current_period_info}")
         if not current_period_info:
             # period_id
-            check_query = "SELECT period_id FROM gaea_emotions WHERE `status`=1 ORDER BY id DESC limit 1"
+            check_query = """
+                            SELECT 
+                                period_id 
+                            FROM hack_emotions 
+                            WHERE 
+                                `status`=1 
+                            ORDER BY id DESC
+                            LIMIT 1
+                            """
             await cursorSlave.execute(check_query)
             period_info = await cursorSlave.fetchone()
             logger.debug(f"mysql period_info: {period_info}")
@@ -416,13 +441,13 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                                 e2.period_emotion AS last_period_emotion,
                                 e2.period_average AS last_period_average
                             FROM 
-                                gaea_emotions e1
+                                hack_emotions e1
                             LEFT JOIN 
-                                gaea_emotions e2 ON e1.period_id - 1 = e2.period_id
+                                hack_emotions e2 ON e1.period_id - 1 = e2.period_id AND e2.chain_id=e1.chain_id
                             WHERE 
-                                e1.status = 1
+                                e1.chain_id=%s AND e1.status=1
                             """
-            values = ()
+            values = (chain_id,)
             await cursorSlave.execute(check_query, values)
             combined_info = await cursorSlave.fetchone()
             logger.debug(f"mysql combined_info: {combined_info}")
@@ -446,7 +471,7 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                 web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
                 # Connecting to the RPC Node
                 while not web3_is_connected_with_retry(web3_obj):
-                    logger.error(f"Ooops! Failed to eth.is_connected.")
+                    logger.error(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
                     time.sleep(10)
                 logger.debug(f"web3_rpc_url: '{web3_rpc_url}' {type(web3_rpc_url)}")
                 
@@ -486,7 +511,14 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                     last_emotion = 0
                     last_average = 0
                 
-                check_query = "SELECT period_id, period_duration FROM gaea_emotions WHERE period_id IN (%s, %s)"
+                check_query = """
+                                SELECT 
+                                    period_id, 
+                                    period_duration 
+                                FROM hack_emotions 
+                                WHERE 
+                                    period_id IN (%s, %s)
+                                """
                 values = (period_id, period_id - 1)
                 await cursorSlave.execute(check_query, values)
                 emotion_info_list = await cursorSlave.fetchall()
@@ -546,11 +578,14 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                                 emotion_positive as positive,
                                 emotion_neutral as neutral,
                                 emotion_negative as negative
-                            FROM gaea_emotions 
-                            WHERE status = 2
-                            ORDER BY period_id DESC LIMIT 10
+                            FROM hack_emotions 
+                            WHERE
+                                chain_id=%s AND status=2
+                            ORDER BY period_id DESC 
+                            LIMIT 10
                         """
-            await cursorSlave.execute(check_query)
+            values = (chain_id,)
+            await cursorSlave.execute(check_query,values)
             emotion_list = await cursorSlave.fetchall()
             logger.debug(f"mysql emotion_list: {emotion_list}")
             await set_redis_data(True, f"hackathon:period:{chain_id}:{current_period_id}:list", value=json.dumps(emotion_list), ex=600)
@@ -563,7 +598,7 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
             web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
             # Connecting to the RPC Node
             while not web3_is_connected_with_retry(web3_obj):
-                logger.error(f"Ooops! Failed to eth.is_connected.")
+                logger.error(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
                 time.sleep(10)
             logger.debug(f"web3_rpc_url: '{web3_rpc_url}' {type(web3_rpc_url)}")
             
@@ -618,12 +653,28 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                 emotion_negative = emotion_contract.functions.getIssueEmotionAddrslength(period_id, 3).call()
                 logger.debug(f"emotion_negative: {emotion_negative}")
 
-                update_query = "UPDATE gaea_emotions SET period_end=%s,period_putmoney=%s,period_price=%s,period_emotion=%s,period_average=%s,period_reward=%s,period_total=%s,emotion_positive=%s,emotion_neutral=%s,emotion_negative=%s,status=%s,updated_time=NOW() WHERE period_id = %s"
-                values = (end_timestamp, period_putmoney, period_price, period_emotion, int(period_average), int(period_reward), period_total, emotion_positive, emotion_neutral, emotion_negative, 2, period_id)
+                update_query = """
+                                UPDATE hack_emotions 
+                                SET 
+                                    period_end=%s,
+                                    period_putmoney=%s,
+                                    period_price=%s,
+                                    period_emotion=%s,
+                                    period_average=%s,
+                                    period_reward=%s,
+                                    period_total=%s,
+                                    emotion_positive=%s,
+                                    emotion_neutral=%s,
+                                    emotion_negative=%s,
+                                    status=%s,
+                                    updated_time=NOW()
+                                WHERE 
+                                    chain_id=%s AND period_id=%s"""
+                values = (end_timestamp, period_putmoney, period_price, period_emotion, int(period_average), int(period_reward), period_total, emotion_positive, emotion_neutral, emotion_negative, 2, chain_id, period_id)
                 # logger.debug(f"update_query: {update_query} values: {values}")
                 await cursor.execute(update_query, values)
                 await cursor.connection.commit()
-                logger.debug(f"update gaea_emotions - status=2")
+                logger.debug(f"update hack_emotions - status=2")
 
             # Check if the period_id already exists
             check_query = """
@@ -638,11 +689,14 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
                                 emotion_positive as positive,
                                 emotion_neutral as neutral,
                                 emotion_negative as negative 
-                            FROM gaea_emotions 
-                            WHERE status = 2
-                            ORDER BY period_id DESC LIMIT 10
+                            FROM hack_emotions 
+                            WHERE 
+                                chain_id=%s AND status=2
+                            ORDER BY period_id DESC 
+                            LIMIT 10
                         """
-            await cursorSlave.execute(check_query)
+            values = (chain_id,)
+            await cursorSlave.execute(check_query, values)
             emotion_list = await cursorSlave.fetchall()
             logger.debug(f"mysql emotion_list: {emotion_list}")
             await set_redis_data(True, f"hackathon:period:{chain_id}:{current_period_id}:list", value=json.dumps(emotion_list), ex=600)
@@ -650,7 +704,17 @@ async def emotion_period_history(post_request: EmotionRequest, address: Dict = D
         user_emotion_list = await get_redis_data(False, f"hackathon:period:{chain_id}:{current_period_id}:{address}:list")
         logger.debug(f"redis user_emotion_list: {user_emotion_list}")
         if user_emotion_list is None:
-            check_query = "SELECT period_id as id,MAX(period_emotion) as emotion FROM gaea_emotion_onchain WHERE address = %s and status = 1 GROUP BY period_id ORDER BY id DESC LIMIT 11"
+            check_query = """
+                            SELECT 
+                                period_id as id,
+                                MAX(period_emotion) as emotion 
+                            FROM hack_emotion_onchain 
+                            WHERE 
+                                address = %s AND status = 1 
+                            GROUP BY period_id 
+                            ORDER BY id DESC 
+                            LIMIT 11
+                            """
             values = (address,)
             # print(f"check_query: {check_query}, values: {values}")
             await cursor.execute(check_query, values)

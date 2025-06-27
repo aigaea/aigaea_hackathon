@@ -14,8 +14,8 @@ from loguru import logger
 from datetime import datetime as dt
 from dbutils.pooled_db import PooledDB
 
-from utils.web3_tools import get_web3_config_by_network
-from config import DB_CONFIG, WEB3_NETWORK
+from utils.web3_tools import get_web3_config_by_chainid
+from config import DB_CONFIG
 
 """
 - training event monitoring
@@ -166,7 +166,7 @@ def get_event_logs_with_retry(contract_event, from_block, to_block, max_retries=
 # ------------------------------------------------------------------------------------
 
 # Monitor blocks and parse related transactions into the database
-def listen_transactions_start(web3_config, hash_index):
+def listen_events_start(web3_config, hash_index):
     global hash_file
 
     config_network = web3_config['network'] # network
@@ -180,10 +180,10 @@ def listen_transactions_start(web3_config, hash_index):
     web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
     # Connecting to the RPC Node
     while not web3_is_connected_with_retry(web3_obj):
-        logger.error(f"Ooops! Failed to eth.is_connected.")
+        logger.error(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
         time.sleep(10)
 
-    retry_interval = web3_config.get('interval', 10)*3
+    retry_interval = web3_config.get('interval', 10) * 10
     
     # emotion
     emotion_address = web3_config['emotion']
@@ -211,12 +211,12 @@ def listen_transactions_start(web3_config, hash_index):
             to_block = min(current_block, hash_index + MAX_BLOCK_RANGE)
             logger.debug(f"Processing blocks: {hash_index} to {to_block} (diff: {to_block - hash_index})")
 
-            # events = emotion_contract.events.Emotions.get_logs(from_block=web3_obj.to_hex(hash_index), to_block=to_block)
-            events = get_event_logs_with_retry(
-                emotion_contract.events.Emotions,
-                from_block=hash_index,
-                to_block=to_block,
-            )
+            events = emotion_contract.events.Emotions.get_logs(from_block=web3_obj.to_hex(hash_index), to_block=to_block)
+            # events = get_event_logs_with_retry(
+            #     emotion_contract.events.Emotions,
+            #     from_block=hash_index,
+            #     to_block=to_block,
+            # )
             for event in events:
                 logger.info(f"Emotions event: {event}")
                 block_number = int(event.blockNumber)
@@ -277,24 +277,25 @@ def listen_transactions_start(web3_config, hash_index):
 
                 # Emotion storage
                 insert_query = """
-                                INSERT INTO gaea_emotion_onchain 
+                                INSERT INTO hack_emotion_onchain 
                                     (address, tx_chainid, tx_blockid, tx_hash, tx_date, cool_address, cool_amount, period_id, period_emotion, status, note) 
                                 SELECT 
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                                 WHERE 
-                                    NOT EXISTS (SELECT id FROM gaea_emotion_onchain WHERE tx_hash = %s)
+                                    NOT EXISTS (SELECT id FROM hack_emotion_onchain WHERE tx_hash = %s)
                                 """
                 values = (address, config_chainid, block_number, tx_hash, block_time, cool_address, cool_amount, period_id, period_emotion, status, note, tx_hash)
                 # logger.debug(f"insert_query: {insert_query} values: {values}")
                 cursor.execute(insert_query, values)
                 cursor.connection.commit()
-                logger.debug(f"insert gaea_emotion_onchain success!")
+                logger.debug(f"insert hack_emotion_onchain success!")
 
                 check_query = """
-                        SELECT id
-                        FROM gaea_emotion_onchain 
-                        WHERE tx_hash = %s and status=1
-                        """
+                                SELECT id
+                                FROM hack_emotion_onchain 
+                                WHERE 
+                                    tx_hash = %s AND status=1
+                                """
                 values = (tx_hash)
                 cursor.execute(check_query, values)
                 one_transaction = cursor.fetchone()
@@ -304,68 +305,82 @@ def listen_transactions_start(web3_config, hash_index):
                     trainid = one_transaction['id']
                     today = block_time[:10]
                     # Training elimination
-                    check_query = """
-                            SELECT id 
-                            FROM gaea_emotion_training 
-                            WHERE trainid = %s
-                            """
+                    if config_chainid == 11155111:
+                        trainnetwork = "eth"
+                    elif config_chainid == 84532:
+                        trainnetwork = "base"
+                    elif config_chainid == 43113:
+                        trainnetwork = "avax"
+                    elif config_chainid == 97:
+                        trainnetwork = "bsc"
+                    else:
+                        trainnetwork = "eth"
+                    check_query = f"""
+                                    SELECT id 
+                                    FROM hack_emotion_training 
+                                    WHERE trainid_{trainnetwork} = %s
+                                    """
                     values = (trainid)
                     # print(f"check_query: {check_query}, values: {values}")
                     cursor.execute(check_query, values)
                     exist_deeptraining = cursor.fetchall()
                     logger.debug(f"deeptraining exist_deeptraining: {len(exist_deeptraining)}")
                     if not exist_deeptraining:
-                        check_query = """
-                                SELECT id 
-                                FROM gaea_emotion_training 
-                                WHERE address = %s and status = 1 and date = %s and trainid = 0
-                                """
+                        check_query = f"""
+                                        SELECT id 
+                                        FROM hack_emotion_training 
+                                        WHERE address = %s and status = 1 and date = %s and trainid_{trainnetwork} = 0
+                                        """
                         values = (address, today)
                         # print(f"check_query: {check_query}, values: {values}")
                         cursor.execute(check_query, values)
                         exist_training = cursor.fetchone()
                         logger.debug(f"deeptraining exist_training: {exist_training}")
                         if not exist_training:
-                            logger.error(f"No data training gaea_emotion_training not found! one_transaction: {one_transaction}")
+                            logger.error(f"No data training hack_emotion_training not found! one_transaction: {one_transaction}")
                         else:
                             # Update deep training status
-                            update_query = """
-                                            UPDATE gaea_emotion_training 
+                            update_query = f"""
+                                            UPDATE hack_emotion_training 
                                             SET 
-                                                trainid=%s,
+                                                trainid_{trainnetwork}=%s,
                                                 updated_time=NOW() 
                                             WHERE id = %s
                                             """
                             values = (trainid, exist_training['id'])
                             cursor.execute(update_query, values)
                             cursor.connection.commit()
-                            logger.success(f"update gaea_emotion_training success! trainid: {trainid} id: {exist_training['id']}")
+                            logger.success(f"update hack_emotion_training success! trainid: {trainid} id: {exist_training['id']}")
                         
                         # Start emotional deep training
                         insert_query = """
-                                        INSERT INTO gaea_emotion_training (address, detail, status, date) 
-                                        SELECT %s, (SELECT detail FROM gaea_emotion_training WHERE address = %s and status = 1 and date = %s), %s, %s
-                                        WHERE NOT EXISTS (SELECT id FROM gaea_emotion_training WHERE address = %s and status = 2 and date = %s)
-                                        AND EXISTS (SELECT id FROM gaea_emotion_training WHERE address = %s and status = 1 and date = %s)
+                                        INSERT INTO hack_emotion_training
+                                            (address, detail, status, date) 
+                                        SELECT
+                                            %s, (SELECT detail FROM hack_emotion_training WHERE address = %s and status = 1 and date = %s), %s, %s
+                                        WHERE 
+                                            EXISTS (SELECT id FROM hack_emotion_training WHERE address = %s and status = 1 and date = %s)
+                                            AND NOT EXISTS (SELECT id FROM hack_emotion_training WHERE address = %s and status = 2 and date = %s)
                                         """
                         values = (address, address, today, 2, today, address, today, address, today)
                         cursor.execute(insert_query, values)
                         cursor.connection.commit()
-                        logger.success(f"insert gaea_emotion_training success! address: {address} status: 2")
+                        logger.success(f"insert hack_emotion_training success! address: {address} status: 2")
 
                         randuuid = random.randint(1, 99999)
                         # Update signin status
                         update_query = """
-                                        UPDATE gaea_emotion_onchain 
+                                        UPDATE hack_emotion_onchain 
                                         SET 
                                             period_uuid=%s,
                                             updated_time=NOW()
-                                        WHERE id = %s
+                                        WHERE
+                                            id = %s
                                         """
                         values = (randuuid, trainid)
                         cursor.execute(update_query, values)
                         cursor.connection.commit()
-                        logger.success(f"update gaea_emotion_onchain success! one_transaction: {one_transaction}")
+                        logger.success(f"update hack_emotion_onchain success! one_transaction: {one_transaction}")
                         # Update current period's data
                         if period_emotion in [1, 2, 3]:
                             emotion_columns = {
@@ -374,14 +389,17 @@ def listen_transactions_start(web3_config, hash_index):
                                 3: 'emotion_negative'
                             }
                             update_query = f"""
-                                            UPDATE gaea_emotions 
-                                            SET period_total = period_total + 1, {emotion_columns[period_emotion]} = {emotion_columns[period_emotion]} + 1, updated_time = NOW() 
+                                            UPDATE hack_emotions 
+                                            SET
+                                                period_total = period_total + 1,
+                                                {emotion_columns[period_emotion]} = {emotion_columns[period_emotion]} + 1,
+                                                updated_time = NOW() 
                                             WHERE period_id = %s AND status = 1
                                             """
                             values = (period_id,)
                             cursor.execute(update_query, values)
                             cursor.connection.commit()
-                            logger.success(f"update gaea_emotions - period_total+1")
+                            logger.success(f"update hack_emotions - period_total+1")
                         else:
                             logger.error(f"Invalid period_emotion value: {period_emotion}")
                     else:
@@ -411,11 +429,11 @@ def listen_transactions_start(web3_config, hash_index):
             time.sleep(600)
             continue
 
-async def listen_transactions():
+async def listen_events(chainid):
     global hash_file
     global hash_index
 
-    web3_config = get_web3_config_by_network(WEB3_NETWORK)
+    web3_config = get_web3_config_by_chainid(chainid)
     logger.debug(f"web3_config: {web3_config}")
 
     config_chainid = web3_config['chain_id'] # chain_id
@@ -429,6 +447,7 @@ async def listen_transactions():
         raise Exception("Web3 rpc not found")
     web3_obj = Web3(Web3.HTTPProvider(web3_rpc_url))
     while not web3_is_connected_with_retry(web3_obj):
+        logger.debug(f"Ooops! Failed to eth.is_connected. {web3_rpc_url}")
         time.sleep(5)
 
     current_block=0
@@ -453,7 +472,7 @@ async def listen_transactions():
     if current_block - hash_index > 100:
         logger.error(f"Warning, block height difference. - clac_block: {current_block - hash_index}")
 
-    listen_transactions_start(web3_config, hash_index)
+    listen_events_start(web3_config, hash_index)
 
 
 if __name__ == '__main__':
@@ -461,9 +480,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', type=bool, default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('-l', '--log', type=str, default="warn")
+    parser.add_argument('-c', '--chainid', type=int, default=84532)
     args = parser.parse_args()
     run_debug = bool(args.debug)
     run_log = str(args.log.lower())
+    run_chainid = int(args.chainid)
 
     # log level
     if run_debug:
@@ -482,4 +503,4 @@ if __name__ == '__main__':
     logger.remove()
     logger.add(sys.stdout, level=log_level)
 
-    asyncio.run(listen_transactions())
+    asyncio.run(listen_events(run_chainid))

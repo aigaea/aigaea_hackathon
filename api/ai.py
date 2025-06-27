@@ -194,13 +194,13 @@ async def ai_chat(post_request: AIChatRequest, address: Dict = Depends(get_curre
         logger.debug(f"redis aichat_check: {aichat_check}")
         if not aichat_check:
             check_query = """
-                    SELECT 
-                        detail 
-                    FROM gaea_emotion_training 
-                    WHERE 
-                        address = %s and date = %s
-                    ORDER BY id DESC limit 1
-                    """
+                        SELECT 
+                            detail 
+                        FROM hack_emotion_training 
+                        WHERE 
+                            address = %s AND date = %s
+                        ORDER BY id DESC limit 1
+                        """
             values = (address,today)
             await cursorSlave.execute(check_query, values)
             checkin_info = await cursorSlave.fetchone()
@@ -320,7 +320,15 @@ async def ai_list(address: Dict = Depends(get_current_address), cursorSlave=Depe
         aitrain_info=await get_redis_data(False, f"hackathon:aitrain:{address}:{today}:detail")
         logger.debug(f"redis aitrain_info: {aitrain_info}")
         if not aitrain_info:
-            check_query = "SELECT detail,status FROM gaea_emotion_training WHERE address = %s and status = 1 and date = %s limit 1"
+            check_query = """
+                        SELECT 
+                            detail,
+                            status 
+                        FROM hack_emotion_training 
+                        WHERE 
+                            address = %s AND status = 1 AND date = %s 
+                        limit 1
+                        """
             values = (address, today)
             # print(f"check_query: {check_query}, values: {values}")
             await cursorSlave.execute(check_query, values)
@@ -340,7 +348,7 @@ async def ai_list(address: Dict = Depends(get_current_address), cursorSlave=Depe
             check_query = """
                     WITH ranked_data AS (
                         SELECT date,detail,status,ROW_NUMBER() OVER (PARTITION BY date ORDER BY status ASC) as rn
-                        FROM gaea_emotion_training 
+                        FROM hack_emotion_training 
                         WHERE address = %s AND status = 2 AND created_time > FROM_UNIXTIME(%s) 
                     )
                     SELECT date, detail, status
@@ -418,7 +426,13 @@ async def ai_complete(post_request: CheckInRequest, address: Dict = Depends(get_
         aitrain_info=await get_redis_data(False, f"hackathon:aitrain:{address}:{today}:detail")
         logger.debug(f"redis aitrain_info: {aitrain_info}")
         if not aitrain_info:
-            check_query = "SELECT detail,status FROM gaea_emotion_training WHERE address = %s and status = 1 and date = %s limit 1"
+            check_query = """
+                            SELECT detail,status 
+                            FROM hack_emotion_training 
+                            WHERE 
+                                address = %s AND status = 1 AND date = %s 
+                            LIMIT 1
+                            """
             values = (address, today)
             # print(f"check_query: {check_query}, values: {values}")
             await cursor.execute(check_query, values)
@@ -445,7 +459,12 @@ async def ai_complete(post_request: CheckInRequest, address: Dict = Depends(get_
             return {"code": 400, "success": False, "msg": f"Training already completed"}
         else:
             # Check if record exists
-            check_query = "SELECT * from gaea_emotion_training WHERE address = %s and status = 1 and date = %s"
+            check_query = """
+                            SELECT * 
+                            FROM hack_emotion_training 
+                            WHERE 
+                                address = %s AND status = 1 AND date = %s
+                            """
             values = (address, today)
             logger.debug(f"check_query: {check_query} values: {values}")
             await cursor.execute(check_query, values)
@@ -458,9 +477,10 @@ async def ai_complete(post_request: CheckInRequest, address: Dict = Depends(get_
 
             # Start emotion training
             insert_query = """
-                            INSERT INTO gaea_emotion_training (address, detail, status, date) 
+                            INSERT INTO hack_emotion_training 
+                                (address, detail, status, date) 
                             SELECT %s, %s, %s, %s
-                            WHERE NOT EXISTS (SELECT id FROM gaea_emotion_training WHERE address = %s and status = 1 and date = %s)
+                            WHERE NOT EXISTS (SELECT id FROM hack_emotion_training WHERE address = %s AND status = 1 AND date = %s)
                             """
             values = (address, post_request.detail, 1, today, address, today)
             await cursor.execute(insert_query, values)
@@ -497,7 +517,13 @@ async def ai_history(page: int | None = 1, limit: int | None = 10, address: Dict
         history_count = await get_redis_data(False, f"hackathon:trainall:{address}:count")
         logger.debug(f"redis history_count: {history_count}")
         if history_count is None:
-            check_query = "SELECT count(*) as len FROM gaea_emotion_training WHERE address = %s"
+            check_query = """
+                            SELECT 
+                                count(*) as len 
+                            FROM hack_emotion_training 
+                            WHERE 
+                                address = %s
+                            """
             values = (address)
             await cursorSlave.execute(check_query, values)
             all_info = await cursorSlave.fetchone()
@@ -521,7 +547,17 @@ async def ai_history(page: int | None = 1, limit: int | None = 10, address: Dict
         history_list = await get_redis_data(False, f"hackathon:trainall:{address}:{page}:{limit}:list")
         logger.debug(f"redis history_list: {history_list}")
         if history_list is None:
-            check_query = "SELECT date,detail,status FROM gaea_emotion_training WHERE address = %s order by id DESC limit %s, %s "
+            check_query = """
+                            SELECT 
+                                date,
+                                detail,
+                                status 
+                            FROM hack_emotion_training 
+                            WHERE 
+                                address = %s 
+                            ORDER BY id DESC 
+                            LIMIT %s, %s 
+                            """
             values = (address, limit * (page - 1), limit)
             await cursorSlave.execute(check_query, values)
             history_list = await cursorSlave.fetchall()
