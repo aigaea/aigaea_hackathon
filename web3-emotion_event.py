@@ -394,9 +394,10 @@ def listen_events_start(web3_config, hash_index):
                                                 period_total = period_total + 1,
                                                 {emotion_columns[period_emotion]} = {emotion_columns[period_emotion]} + 1,
                                                 updated_time = NOW() 
-                                            WHERE period_id = %s AND status = 1
+                                            WHERE
+                                                chain_id=%s AND period_id=%s AND status = 1
                                             """
-                            values = (period_id,)
+                            values = (config_chainid,period_id,)
                             cursor.execute(update_query, values)
                             cursor.connection.commit()
                             logger.success(f"update hack_emotions - period_total+1")

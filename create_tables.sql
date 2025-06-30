@@ -84,8 +84,8 @@ CREATE TABLE `hack_emotions`
 
 -- ------------------------------------------------------------------------
 
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 1, 86400, 280000, 1000000, 80, 0);
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 2, 86400, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 1, 1800, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 2, 7200, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 3, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 4, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 5, 86400, 280000, 1000000, 80, 0);
@@ -95,8 +95,8 @@ INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, p
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111, 9, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (11155111,10, 86400, 280000, 1000000, 80, 0);
 
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 1, 86400, 280000, 1000000, 80, 0);
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 2, 86400, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 1, 1800, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 2, 7200, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 3, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 4, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 5, 86400, 280000, 1000000, 80, 0);
@@ -106,8 +106,8 @@ INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, p
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532, 9, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (84532,10, 86400, 280000, 1000000, 80, 0);
 
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 1, 86400, 280000, 1000000, 80, 0);
-INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 2, 86400, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 1, 1800, 280000, 1000000, 80, 0);
+INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 2, 7200, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 3, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 4, 86400, 280000, 1000000, 80, 0);
 INSERT INTO hack_emotions (chain_id, period_id, period_duration, period_price, period_putmoney, period_proportion, status) VALUES (43113, 5, 86400, 280000, 1000000, 80, 0);
