@@ -23,7 +23,8 @@ check_port() {
     # tips
     echo -e "\033[34m netstat -anp tcp -v | grep \".$1 \" |awk '{print \$11}' |head -n 1 \033[0m"
     temp=`netstat -anp tcp -v | grep ".$1 " |awk '{print $11}' |head -n 1`
-    pid=${temp%/*}
+    temp=${temp%/*}
+    pid=${temp#*:}
   else
     # tips
     echo -e "\033[34m netstat -tlpn | grep \":$1 \" |grep -v \"grep\" |awk '{print \$7}' |head -n 1 \033[0m"
@@ -81,7 +82,7 @@ elif [ "$1" == "run" ]; then ## run
     echo Virtual Environment Activation...
     source .venv/bin/activate
     echo Launching main.py ...
-    python3 main.py $2 $3 $4 $5 $6
+    python3 main.py ${@:2}
   else
     # tips
     echo -e "\033[31m 'main.py' is exist. \033[0m"
@@ -92,7 +93,7 @@ else
     echo Virtual Environment Activation...
     source .venv/bin/activate
     echo Launching main.py ...
-    nohup python3 main.py $1 $2 $3 $4 $5 $6 > log-main.log 2>&1 &
+    nohup python3 main.py $@ > log-main.log 2>&1 &
   else
     # tips
     echo -e "\033[31m 'main.py' is exist. \033[0m"
